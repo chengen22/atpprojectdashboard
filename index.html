@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATP Project Status Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #f5f6f8;
+    color: #1a1a2e;
+    padding: 20px;
+    font-size: 13px;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #0d1b4b 0%, #1a3a8f 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+  .header .subtitle { font-size: 12px; opacity: 0.75; margin-top: 4px; }
+  .header .as-of { font-size: 11px; opacity: 0.65; text-align: right; }
+
+  .summary-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: white;
+    border-radius: 10px;
+    padding: 14px 16px;
+    border: 1px solid #e8eaf0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .card .label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; margin-bottom: 6px; }
+  .card .value { font-size: 28px; font-weight: 700; line-height: 1; }
+  .card.total .value { color: #1a3a8f; }
+  .card.p1 .value { color: #dc2626; }
+  .card.p2 .value { color: #d97706; }
+  .card.p3 .value { color: #16a34a; }
+
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .chart-card {
+    background: white;
+    border-radius: 10px;
+    padding: 16px 18px;
+    border: 1px solid #e8eaf0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .chart-card h3 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6b7280;
+    margin-bottom: 12px;
+  }
+  .chart-wrap { position: relative; height: 220px; }
+
+  .filters {
+    background: white;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border: 1px solid #e8eaf0;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .filter-label { font-size: 11px; color: #6b7280; font-weight: 600; margin-right: 4px; }
+  .filter-btn {
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid #e8eaf0;
+    background: #f9fafb;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover { background: #f0f4ff; border-color: #1a3a8f; }
+  .filter-btn.active { background: #1a3a8f; color: white; border-color: #1a3a8f; }
+  .filter-btn.p1.active { background: #dc2626; border-color: #dc2626; }
+  .filter-btn.p2.active { background: #d97706; border-color: #d97706; }
+  .filter-btn.p3.active { background: #16a34a; border-color: #16a34a; }
+  .search-input {
+    margin-left: auto;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid #e8eaf0;
+    font-size: 12px;
+    font-family: inherit;
+    width: 200px;
+    outline: none;
+  }
+  .search-input:focus { border-color: #1a3a8f; }
+
+  .table-wrap {
+    background: white;
+    border-radius: 10px;
+    border: 1px solid #e8eaf0;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    background: #f8f9fc;
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #6b7280;
+    border-bottom: 1px solid #e8eaf0;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  thead th:hover { background: #f0f4ff; color: #1a3a8f; }
+  thead th .sort-arrow { margin-left: 4px; opacity: 0.4; }
+  tbody tr { border-bottom: 1px solid #f0f2f6; transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #f8faff; }
+  td { padding: 10px 12px; vertical-align: top; }
+
+  .num { font-weight: 700; color: #1a3a8f; font-size: 13px; }
+  .initiative-name { font-weight: 600; font-size: 13px; color: #111827; }
+  .domain-tag {
+    display: inline-block;
+    margin-top: 3px;
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: #f0f4ff;
+    color: #1a3a8f;
+    font-weight: 500;
+  }
+
+  .priority-badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .priority-badge.p1 { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+  .priority-badge.p2 { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+  .priority-badge.p3 { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+
+  .status-label {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+    white-space: nowrap;
+  }
+
+  .owner-chip {
+    display: inline-block;
+    background: #f0f4ff;
+    color: #1a3a8f;
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 11px;
+    margin: 1px 2px 1px 0;
+    white-space: nowrap;
+  }
+
+  .bullets { font-size: 12px; color: #374151; line-height: 1.55; }
+  .bullets li { margin-left: 14px; margin-bottom: 2px; }
+
+  .blocker-chip {
+    display: inline-block;
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 2px 8px;
+    font-size: 11px;
+    margin-bottom: 3px;
+  }
+  .no-blocker { color: #9ca3af; font-size: 11px; }
+  .no-results { padding: 32px; text-align: center; color: #9ca3af; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>🚀 ATP Project Status Dashboard</h1>
+    <div class="subtitle">StarHub Advanced Technology Platform | PM: Hu Cheng En</div>
+  </div>
+  <div class="as-of">Last updated: 29 May 2026</div>
+</div>
+
+<div class="summary-row">
+  <div class="card total"><div class="label">Total Initiatives</div><div class="value" id="cnt-total">—</div></div>
+  <div class="card p1"><div class="label">🔴 P1 Critical</div><div class="value" id="cnt-p1">—</div></div>
+  <div class="card p2"><div class="label">🟡 P2 High</div><div class="value" id="cnt-p2">—</div></div>
+  <div class="card p3"><div class="label">🟢 P3 Medium</div><div class="value" id="cnt-p3">—</div></div>
+</div>
+
+<div class="charts-row">
+  <div class="chart-card">
+    <h3>Owner Workload</h3>
+    <div class="chart-wrap"><canvas id="workloadChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Priority Breakdown by Owner</h3>
+    <div class="chart-wrap"><canvas id="priorityChart"></canvas></div>
+  </div>
+</div>
+
+<div class="filters">
+  <span class="filter-label">Priority:</span>
+  <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
+  <button class="filter-btn p1" data-filter="P1" onclick="setFilter('P1')">🔴 P1 Critical</button>
+  <button class="filter-btn p2" data-filter="P2" onclick="setFilter('P2')">🟡 P2 High</button>
+  <button class="filter-btn p3" data-filter="P3" onclick="setFilter('P3')">🟢 P3 Medium</button>
+  <input class="search-input" id="searchBox" placeholder="🔍 Search initiatives…" oninput="renderTable()">
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th onclick="sortBy('numSort')">#<span class="sort-arrow">↕</span></th>
+        <th onclick="sortBy('name')">Initiative<span class="sort-arrow">↕</span></th>
+        <th onclick="sortBy('priority')">Priority<span class="sort-arrow">↕</span></th>
+        <th onclick="sortBy('owners')">Owner(s)<span class="sort-arrow">↕</span></th>
+        <th onclick="sortBy('status')">Status<span class="sort-arrow">↕</span></th>
+        <th>Current Status</th>
+        <th>Next Steps</th>
+        <th>Blockers / Risks</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+  <div class="no-results" id="noResults" style="display:none;">No initiatives match your filter.</div>
+</div>
+
+<script>
+const PROJECTS = [
+  {
+    num: "3", numSort: 3,
+    name: "TransferChain (Blockchain)",
+    domain: "Data & Blockchain",
+    priority: "P3", priorityLabel: "P3 – MEDIUM",
+    owners: ["Abigail S", "Rajesh Mhatre", "Cheng En"],
+    status: "POC Closed – Decision Pending",
+    currentStatus: [
+      "15 May — POC officially closed; all test results received",
+      "Full test case results: 5 pass, 1 partial",
+      "Decision to proceed to production pending architecture discussion w/c 18 May"
+    ],
+    nextSteps: ["Production architecture discussion wk of 18 May"],
+    blockers: ["Production architecture TBD — SDK incompatible with routers/firewalls"]
+  },
+  {
+    num: "4", numSort: 4,
+    name: "iPatch – Centralised Patch Management",
+    domain: "Infrastructure & Automation",
+    priority: "P1", priorityLabel: "P1 – CRITICAL",
+    owners: ["Zeng Lam", "Ann Teng", "Cheng En"],
+    status: "MVP Dev WIP",
+    currentStatus: [
+      "18 May — IBM Concert demo held; MVP dev in progress; IBM eval running in parallel",
+      "SHINE review done (5 May) — phased delivery agreed",
+      "Ping Identity IAM vendor meetup held 11 May — evaluated as auth/authorisation layer",
+      "Ping Identity BQ follow-up call requested; IBM Concert features list requested from Joshua/Jasper",
+      "IBM Concert blocked by no-internet-access in dev env"
+    ],
+    nextSteps: [
+      "Receive Ping Identity commercial quote + technical blueprint",
+      "Development env on VMWare — confirmed",
+      "Compile comparison feature list: iPatch vs IBM Concert vs Ninja One vs Ivanti by w/c 2 Jun",
+      "IBM Concert comprehensive demo — 2nd wk Jun",
+      "Schedule Ping Identity call to confirm gateway preference + PS scoping",
+      "Update internal platform name to 'Remedy'"
+    ],
+    blockers: [
+      "Development env has no internet access",
+      "Production env deployment location still unknown"
+    ]
+  },
+  {
+    num: "5", numSort: 5,
+    name: "API Gateways – F5 & Tyk",
+    domain: "API & Gateway Platforms",
+    priority: "P1", priorityLabel: "P1 – CRITICAL",
+    owners: ["Shubham Tambi", "Manohar Yadav"],
+    status: "In Progress",
+    currentStatus: [
+      "[Testbed] F5 AI Guardrails POC confirmed: Jul=API GW, Aug=AI Guardrails (5 May)",
+      "[Testbed] Nginx on-prem preferred over XC for data sovereignty; Infra provisioned on 18 May",
+      "[Testbed] Tyk PO order & receipt approved on 7 May",
+      "[Testbed] 21 May — NCR000000010650 raised for Tyk/F5 deployment (21 May–3 Jun); FW/VPC peering SLA ~2 weeks",
+      "[Production] Dual gateway architecture confirmed: F5 external, Tyk internal, private cloud + VPC segregation (29 Apr)",
+      "[Production] Cortex integration planned (CSPM, runtime security, XDR/EDR); POC target September"
+    ],
+    nextSteps: [
+      "[Testbed] F5 to send XC API GW PO number",
+      "[Testbed] Firewall and NCR pending in Testbed Infra by w/c 2 Jun",
+      "[Testbed] Obtain VPC Peering to DCN tracking number from Melvin Goh; begin validation post-peering",
+      "[Testbed] Schedule AI specialist deep dive (hallucination detection)",
+      "[Production] Await Testbed completion before Production phase begins; confirm infra timeline with Manohar"
+    ],
+    blockers: [
+      "⚠️ Current licensing does not include NGINX+ (Enterprise) — risk to production",
+      "July 2026 Deployment Target may shift — heavily dependent on Infra provision"
+    ]
+  },
+  {
+    num: "12", numSort: 12,
+    name: "Intent Broker Platform (IBP)",
+    domain: "Product Platforms",
+    priority: "P1", priorityLabel: "P1 – CRITICAL",
+    owners: ["Shubham Tambi", "Ann Teng"],
+    status: "Closure – Fixes & Handover WIP",
+    currentStatus: [
+      "Infosys fixing bugs; functional testing starts ~25 May",
+      "Closure phase — Infosys deploying on AWS SIT/UAT",
+      "50+ documents require systematic review/update for compliance"
+    ],
+    nextSteps: [
+      "Infosys to fix bugs → functional testing starts ~25 May",
+      "UAT: week of 1 Jun 2026 (note 27 May holiday); target completion 3 Jun 2026",
+      "Resolve dev environment AWS setup within 10 days from 12 May",
+      "Review and update 50+ project documents for compliance",
+      "Proceed with vendor payment (Cheng En), pending CoC and Tax Invoice"
+    ],
+    blockers: [
+      "50+ documents require systematic review/update for compliance",
+      "Infosys build stability issues — functional testing gated on bug fixes"
+    ]
+  },
+  {
+    num: "1", numSort: 1,
+    name: "AI Security Design Thinking",
+    domain: "Security & Compliance",
+    priority: "P3", priorityLabel: "P3 – MEDIUM",
+    owners: ["Rajesh"],
+    status: "Initiation Phase",
+    currentStatus: [
+      "25 May — Rajesh issued 6-phase AI Security Architecture plan (F5, Tyk, Cortex, Checkmarx) for pre-commercial testing on private cloud",
+      "Team review due EOD 26 May"
+    ],
+    nextSteps: [
+      "Team to review 6-phase AI Security plan and provide feedback by EOD 26 May",
+      "Develop detailed low-level plan as project progresses"
+    ],
+    blockers: [
+      "No fixed timeline",
+      "Current tools still not migrated or cloud server provisioned"
+    ]
+  },
+  {
+    num: "6", numSort: 6,
+    name: "DevSecOps Operations",
+    domain: "VMWare / DevSecOps",
+    priority: "P2", priorityLabel: "P2 – HIGH",
+    owners: ["Manohar Yadav", "Ann Teng"],
+    status: "Ongoing Support",
+    currentStatus: [
+      "[Tools] Critical VM corruption resolved — backup/recovery complete; new infra provisioning (Melbourne/Jamcon)",
+      "[Tools] PO#10N0101246 Year 2 procurement issue: insufficient balance for Invoice IPL-11028; awaiting guidance on new PR/PO",
+      "[Tools] Cortex onboarding completed; Prisma Cloud migration ongoing (6-month parallel run); new apps deploying directly to Cortex",
+      "[Tools] Bitbucket & Jenkins migration pending Private Cloud Server provisioning",
+      "[Ops] DevSecOps rec sent to CLA/Ozair Faisal; ISO (David) approved onboarding Ozair team on DevSecOps Tools",
+      "[Ops] No AWS incident reporting (on 7 May)"
+    ],
+    nextSteps: [
+      "[Tools] Host Patching (incl. backup, smoke testing) for VMWare to start in June",
+      "[Tools] Continue Prisma Cloud → Cortex migration; target end of May 2026",
+      "[Tools] Prep AI Security presentation for internal by 2nd w/c of June (Ann)",
+      "[Tools] Complete Bitbucket → Private Cloud migration (gated on private cloud server provisioning)",
+      "[Ops] Provision accounts to Ozair Team (CheckMarx + Bitbucket)",
+      "[Ops] Finalise standby operations plan (night/weekend coverage model)"
+    ],
+    blockers: [
+      "PO#10N0101246 Year 2 issue — new PR/PO required for Invoice IPL-11028",
+      "⚠️ Bitbucket & Jenkins: Pending Provisioning of Private Cloud Server"
+    ]
+  },
+  {
+    num: "8", numSort: 8,
+    name: "Quantum Security – IBM Cryptography Discovery",
+    domain: "Security & Compliance",
+    priority: "P1", priorityLabel: "P1 – CRITICAL",
+    owners: ["Rex Mendoza", "Manohar Yadav"],
+    status: "POC Scope Confirmed – Kickoff TBC",
+    currentStatus: [
+      "PO issued ✅ (PO 10N0107940 – 7 May 2026)",
+      "GCM platform onboarding in progress: Platform on AWS, URL whitelisting pending",
+      "IBM/Ingram Micro PIC nominated: Amit & Ravi",
+      "14 May — ISO team (Ric Low / Josephine Chen) formally looped in; Nokia testbed scoped for nmap discovery",
+      "26 May — Kickoff rescheduled to 3 Jun 2026; GCM deployment on private cloud confirmed",
+      "HLD review 30 May with IBM (Ravi)",
+      "28 May — IBM Concert pricing confirmed: PS/onboarding separately chargeable (not in subscription)"
+    ],
+    nextSteps: [
+      "Escalate private cloud infra provisioning to CSO — expedited status required",
+      "Confirm Nokia testbed connectivity (ISO followup)",
+      "HLD review with IBM (Ravi) 30 May",
+      "Confirm kickoff email to IBM for 3 Jun",
+      "Apsara infra resource prep for GCM onboarding (Milestone 2)"
+    ],
+    blockers: [
+      "Nokia testbed connectivity: firewall challenge (shared prod/non-prod network)",
+      "Use case scope discrepancy: SOW=1 vs prior discussions=10 — Ravi to resolve",
+      "License billing starts 1 Jul 2026 regardless of infra readiness — risk of paying for unused licenses"
+    ]
+  },
+  {
+    num: "16", numSort: 16,
+    name: "RPA & Orchestration Platform (KVM)",
+    domain: "Infrastructure & Automation",
+    priority: "P2", priorityLabel: "P2 – HIGH",
+    owners: ["Cheng En", "Manohar Yadav", "Ann Teng"],
+    status: "RFQ Issued – Vendor Q&A Period Open",
+    currentStatus: [
+      "RFQ issued 11 May to 3 vendors: Aegis Technologies, iCompaz (Infosys), IIOL Partners",
+      "18 May — IIOL (Sam) requested proposal deadline extension to 2 Jun",
+      "Vendor Q&A window open (Days 1–14, ~25 May); proposal deadline Day 20 (2 June)",
+      "28 May — Aegis Technologies proposal received (1 of 3). IIOL extension to 2 Jun. iCompaz still pending"
+    ],
+    nextSteps: [
+      "Monitor vendor Q&A — respond to clarifications",
+      "Rajesh + Tio Chong Heng BC approval",
+      "Prepare technical evaluation matrix for Day 21+ scoring",
+      "Await iCompaz proposal",
+      "Begin technical evaluation after all proposals received"
+    ],
+    blockers: ["⚠️ No vendor yet selected. KVM hypervisor vendor must be confirmed first"]
+  },
+  {
+    num: "2", numSort: 2,
+    name: "IMDA/WSG Engagement",
+    domain: "Business Development",
+    priority: "P3", priorityLabel: "P3 – MEDIUM",
+    owners: ["Rajesh"],
+    status: "On Hold",
+    currentStatus: [
+      "13 May — SGTech sync: 50% job scope change criteria; AI application focus; 480 hrs total training",
+      "PPIC Training vendor proposal received: 3 cohorts (~80 pax) SkillsFuture-accredited GenAI course",
+      "18 May — Rajesh reviewing PPIC Technologies GenAI course proposal",
+      "19 May — Formal BC drafted (up to 80 engineers, WSG Jul 2026, training Sep 2026)"
+    ],
+    nextSteps: [
+      "Cheng En to plan job training plan with Lionel as PIC + Satish's team",
+      "Finalise Business Case",
+      "Review training vendor 3-cohort proposal against CCP requirements",
+      "Finalise JD redesign (50% min scope uplift confirmed)",
+      "Source training vendors covering 4 AI application categories (IMDA ICT framework)",
+      "HOD meeting to assess 50% scope-change eligibility"
+    ],
+    blockers: [
+      "JD and application submission outstanding",
+      "480 hrs total; external training capped at 30% of 480 hrs"
+    ]
+  },
+  {
+    num: "9", numSort: 9,
+    name: "Network API Platforms – Number Verify & SIM Swap",
+    domain: "API & Gateway Platforms",
+    priority: "P3", priorityLabel: "P3 – MEDIUM",
+    owners: ["Rajesh", "Cheng En"],
+    status: "Vendor Eval – Multi-Vendor",
+    currentStatus: [
+      "Multi-vendor eval completed: Nabstract, Shush, Nokia, IPification",
+      "Shush MSA legal review in progress; OCBC contract pending",
+      "Shush Infra request for Testbed & Production submitted"
+    ],
+    nextSteps: ["Revenue gap discussion still in progress — follow up required"],
+    blockers: ["Revenue share gap still in discussion — blocker to proceed"]
+  },
+  {
+    num: "11", numSort: 11,
+    name: "SIT & CBG Engagements",
+    domain: "Business Development & Research",
+    priority: "P3", priorityLabel: "P3 – MEDIUM",
+    owners: ["Rajesh"],
+    status: "Concept Stage",
+    currentStatus: [
+      "Concept stage — no formal scope or timeline",
+      "Archived to Backlog (5 May 2026)"
+    ],
+    nextSteps: [
+      "Archived — no active next steps",
+      "Re-activate when formal CBG brief received"
+    ],
+    blockers: ["Both at concept stage — no active scope"]
+  },
+];
+
+const WORKLOAD = [
+  { owner: "Rajesh",        total: 4, p1: 0, p2: 0, p3: 4 },
+  { owner: "Cheng En",      total: 4, p1: 1, p2: 1, p3: 2 },
+  { owner: "Ann Teng",      total: 4, p1: 2, p2: 2, p3: 0 },
+  { owner: "Manohar Yadav", total: 4, p1: 2, p2: 2, p3: 0 },
+  { owner: "Shubham Tambi", total: 2, p1: 2, p2: 0, p3: 0 },
+  { owner: "Zeng Lam",      total: 1, p1: 1, p2: 0, p3: 0 },
+  { owner: "Abigail S",     total: 1, p1: 0, p2: 0, p3: 1 },
+  { owner: "Rex Mendoza",   total: 1, p1: 1, p2: 0, p3: 0 },
+];
+
+let currentFilter = 'all';
+let sortCol = 'numSort';
+let sortDir = 1;
+
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-filter="' + f + '"]').classList.add('active');
+  renderTable();
+}
+
+function sortBy(col) {
+  if (sortCol === col) sortDir *= -1;
+  else { sortCol = col; sortDir = 1; }
+  renderTable();
+}
+
+function getFiltered() {
+  const q = (document.getElementById('searchBox').value || '').toLowerCase();
+  return PROJECTS.filter(p => {
+    if (currentFilter !== 'all' && p.priority !== currentFilter) return false;
+    if (q) {
+      const hay = [p.name, p.domain, p.status, ...p.owners, ...p.currentStatus, ...p.nextSteps, ...p.blockers].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    let av = a[sortCol] != null ? a[sortCol] : '';
+    let bv = b[sortCol] != null ? b[sortCol] : '';
+    if (sortCol === 'owners') { av = a.owners.join(', '); bv = b.owners.join(', '); }
+    if (sortCol === 'priority') { const o = {P1:1,P2:2,P3:3}; av = o[a.priority]||9; bv = o[b.priority]||9; }
+    return av < bv ? -sortDir : av > bv ? sortDir : 0;
+  });
+}
+
+function renderTable() {
+  const rows = getFiltered();
+  const tbody = document.getElementById('tableBody');
+  const noRes = document.getElementById('noResults');
+
+  document.getElementById('cnt-total').textContent = PROJECTS.length;
+  document.getElementById('cnt-p1').textContent = PROJECTS.filter(p=>p.priority==='P1').length;
+  document.getElementById('cnt-p2').textContent = PROJECTS.filter(p=>p.priority==='P2').length;
+  document.getElementById('cnt-p3').textContent = PROJECTS.filter(p=>p.priority==='P3').length;
+
+  if (!rows.length) { tbody.innerHTML = ''; noRes.style.display = ''; return; }
+  noRes.style.display = 'none';
+
+  tbody.innerHTML = rows.map(p => {
+    const pc = p.priority.toLowerCase();
+    const chips = p.owners.map(o => '<span class="owner-chip">' + o + '</span>').join('');
+    const cur = p.currentStatus.length
+      ? '<ul class="bullets">' + p.currentStatus.map(s => '<li>' + s + '</li>').join('') + '</ul>'
+      : '<span class="no-blocker">—</span>';
+    const nxt = p.nextSteps.length
+      ? '<ul class="bullets">' + p.nextSteps.map(s => '<li>' + s + '</li>').join('') + '</ul>'
+      : '<span class="no-blocker">—</span>';
+    const blk = p.blockers.length
+      ? p.blockers.map(b => '<div class="blocker-chip">' + b + '</div>').join('')
+      : '<span class="no-blocker">None identified</span>';
+    return '<tr>' +
+      '<td><span class="num">' + p.num + '</span></td>' +
+      '<td><div class="initiative-name">' + p.name + '</div><span class="domain-tag">' + p.domain + '</span></td>' +
+      '<td><span class="priority-badge ' + pc + '">' + p.priorityLabel + '</span></td>' +
+      '<td>' + chips + '</td>' +
+      '<td><span class="status-label">' + p.status + '</span></td>' +
+      '<td>' + cur + '</td>' +
+      '<td>' + nxt + '</td>' +
+      '<td>' + blk + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function buildCharts() {
+  const owners = WORKLOAD.map(w => w.owner);
+
+  new Chart(document.getElementById('workloadChart'), {
+    type: 'bar',
+    data: {
+      labels: owners,
+      datasets: [{
+        label: 'Initiatives',
+        data: WORKLOAD.map(w => w.total),
+        backgroundColor: '#1a3a8f',
+        borderRadius: 5,
+        barThickness: 18
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#f0f2f6' }, ticks: { stepSize: 1 } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+
+  new Chart(document.getElementById('priorityChart'), {
+    type: 'bar',
+    data: {
+      labels: owners,
+      datasets: [
+        { label: 'P1 Critical', data: WORKLOAD.map(w => w.p1), backgroundColor: '#dc2626', borderRadius: 3, stack: 'stack' },
+        { label: 'P2 High',     data: WORKLOAD.map(w => w.p2), backgroundColor: '#d97706', borderRadius: 3, stack: 'stack' },
+        { label: 'P3 Medium',   data: WORKLOAD.map(w => w.p3), backgroundColor: '#16a34a', borderRadius: 3, stack: 'stack' }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: {
+        x: { stacked: true, grid: { color: '#f0f2f6' }, ticks: { stepSize: 1 } },
+        y: { stacked: true, grid: { display: false } }
+      }
+    }
+  });
+}
+
+renderTable();
+buildCharts();
+</script>
+</body>
+</html>
